@@ -27,22 +27,45 @@ A lightweight 3D web-based multiplayer starter kit using Three.js, React, and Sp
 
 ### Installation
 
-Run the quick start script to set up everything:
+Run the quick start script to set up everything automatically:
 
 ```bash
 sh setup.sh
 ```
 
-Or install dependencies manually:
+Or install dependencies manually with these steps:
 
 ```bash
-# Client
+# 1. Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+
+# 2. Add WASM target for Rust
+rustup target add wasm32-unknown-unknown
+
+# 3. Install Node.js via nvm (if not already installed)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install 22
+nvm use 22
+
+# 4. Install SpacetimeDB CLI
+curl -sSf https://install.spacetimedb.com | sh
+
+# Note: SpacetimeDB installs to ~/.local/bin - add it to your PATH if needed
+export PATH="$HOME/.local/bin:$PATH"
+
+# 5. Install client dependencies
 cd client
 npm install
 
-# Server
+# 6. Build server code
 cd ../server
-cargo build
+spacetime build
+
+# 7. Generate TypeScript bindings
+spacetime generate --lang typescript --out-dir ../client/src/generated
 ```
 
 ### Development
@@ -61,9 +84,27 @@ cd client
 npm run dev
 ```
 
+When making changes to the server schema or reducers, regenerate TypeScript bindings:
+
+```bash
+# From the server directory
+spacetime generate --lang typescript --out-dir ../client/src/generated
+```
+
 This starts:
 - SpacetimeDB server running locally
 - Client on http://localhost:5173 (Vite dev server)
+
+## About SpacetimeDB
+
+This project is built on [SpacetimeDB](https://spacetimedb.com), a distributed database and serverless application framework specifically designed for multiplayer games and real-time applications. SpacetimeDB provides:
+
+- **Real-time Synchronization**: Automatically sync database changes to connected clients
+- **TypeScript Client Generation**: Generate type-safe client bindings from your Rust server code
+- **Seamless Deployment**: Easily deploy your game server to the cloud
+- **Game-Oriented Architecture**: Built with multiplayer game patterns in mind
+
+SpacetimeDB handles the complex networking, state synchronization, and persistence layers so you can focus on building your game logic.
 
 ## Controls
 

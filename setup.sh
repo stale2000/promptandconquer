@@ -121,7 +121,26 @@ else
       source "$HOME/.cargo/env"
     fi
     
-    # Check again after sourcing
+    # Try to add ~/.local/bin to PATH if SpacetimeDB was installed there
+    if [ -f "$HOME/.local/bin/spacetime" ]; then
+      echo "SpacetimeDB found in ~/.local/bin, adding to PATH..."
+      export PATH="$HOME/.local/bin:$PATH"
+      
+      # Also add to shell profile for future sessions
+      if [ -f "$HOME/.bashrc" ]; then
+        if ! grep -q "PATH=\"\$HOME/.local/bin:\$PATH\"" "$HOME/.bashrc"; then
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+          echo "Added ~/.local/bin to PATH in ~/.bashrc"
+        fi
+      elif [ -f "$HOME/.zshrc" ]; then
+        if ! grep -q "PATH=\"\$HOME/.local/bin:\$PATH\"" "$HOME/.zshrc"; then
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+          echo "Added ~/.local/bin to PATH in ~/.zshrc"
+        fi
+      fi
+    fi
+    
+    # Check again after PATH modification
     if ! command -v spacetime &> /dev/null; then
       echo "❌ Failed to install SpacetimeDB. Please install manually."
       spacetime_ok=1
