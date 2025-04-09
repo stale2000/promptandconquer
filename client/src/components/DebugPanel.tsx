@@ -211,7 +211,6 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
                 <li>Shift: Sprint</li>
                 <li>Space: Jump</li>
                 <li>Left Click: Attack</li>
-                <li>1, 2: Cast spells</li>
                 <li>Mouse: Look around</li>
                 <li>Mouse Wheel: Zoom</li>
                 <li>C: Toggle Camera Mode (Follow/Orbital)</li>
