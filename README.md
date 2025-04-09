@@ -2,6 +2,8 @@
 
 A lightweight 3D web-based multiplayer starter kit using Three.js, React, and SpacetimeDB. Perfect for building your own multiplayer games or interactive experiences with modern AI coding tools like Cursor.
 
+[Demo Video](https://x.com/majidmanzarpour/status/1909810088426021192)
+
 ## Project Structure
 
 - `client/` - Frontend game client built with Three.js, React, and Vite
