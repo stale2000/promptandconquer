@@ -1,0 +1,256 @@
+---
+description: Global rules always followed
+globs: 
+alwaysApply: true
+---
+# Vibe Coding Starter Pack: 3D Multiplayer - Technical Guide
+
+This document describes the architecture, setup, workflow, and key development patterns for the Vibe Coding Starter Pack 3D Multiplayer project.
+
+## 1. Project Overview
+
+*   **Goal:** Provide a foundation for building 3D multiplayer web games using SpacetimeDB as the backend.
+*   **Backend:** SpacetimeDB module written in Rust (`server/`). Handles game logic, state management, and data persistence.
+*   **Frontend:** Client application built with Vite, React, TypeScript, and React Three Fiber (`client/`). Connects to SpacetimeDB, subscribes to data, calls reducers, and renders the game state.
+
+## 2. Game Architecture
+
+The starter pack uses a modular, component-based architecture with the following core systems:
+
+1. **Core Game Loop**: Managed in `client/src/App.tsx`, which initializes all components and runs the update cycle
+2. **Rendering System**: Handled by Three.js via React Three Fiber with scene setup in `client/src/components/GameScene.tsx`
+3. **Character System**: Player controls and animations in `client/src/components/Player.tsx`
+4. **UI System**: HUD elements and feedback in `client/src/components/PlayerUI.tsx` and `client/src/components/DebugPanel.tsx`
+5. **Multiplayer System**: Client-server communication in `client/src/App.tsx` and server-side code in `server/src/` directory
+
+## 3. Core SpacetimeDB Concepts Used
+
+*   **Tables:** Relational data storage defined as Rust structs with `#[spacetimedb::table]`. Key tables include `player` and `logged_out_player`. Tables must be marked `public` for client access. Table names used in client SQL subscriptions are **case-sensitive** and must match the `name = "..."` attribute exactly (e.g., `name = "player"` requires `SELECT * FROM player`).
+*   **Reducers:** Atomic, transactional Rust functions (`#[spacetimedb::reducer]`) that modify table state. Triggered by client calls or internal events. Key reducers: `register_player`, `update_player_input`, lifecycle reducers (`identity_connected`, `identity_disconnected`), update reducers (`update_players`).
+*   **Subscriptions:** Clients subscribe to SQL queries (e.g., `SELECT * FROM player`) using the `SubscriptionBuilder` to receive initial data and real-time updates for specific tables.
+*   **Generated Bindings:** The `spacetime generate` command creates TypeScript code (`client/src/generated/`) based on the Rust module's schema, providing type-safe access to tables, reducers, and types on the client.
+*   **Identity:** Represents a unique, authenticated user (`ctx.sender` in reducers, `conn.identity` on client). Used as the primary key for player-related tables.
+
+## 4. Prerequisites
+
+1.  **Rust & Cargo:** ([https://rustup.rs/](mdc:https:/rustup.rs))
+    *   Install: `curl https://sh.rustup.rs -sSf | sh`
+    *   Add WASM target: `rustup target add wasm32-unknown-unknown`
+    *   Ensure `~/.cargo/bin` is in PATH (restart terminal or `source ~/.cargo/env`).
+2.  **SpacetimeDB CLI (v1.0.1):** ([https://install.spacetimedb.com](mdc:https:/install.spacetimedb.com))
+    *   Install: `curl -sSf https://install.spacetimedb.com | sh`
+    *   Ensure install location (e.g., `~/.local/bin`) is in PATH (restart terminal or `source ~/.zshrc`/`.bashrc`).
+    *   Verify: `spacetime --version` (Must match exact server version, e.g., `1.0.1`).
+3.  **Node.js & npm:** ([https://nodejs.org/](mdc:https:/nodejs.org)) (LTS recommended).
+4.  **(Optional) `wasm-opt`:** For optimizing the built Rust module (part of `binaryen`). Install via system package manager (e.g., `brew install binaryen`, `apt install binaryen`). If missing, builds will still work but show a warning.
+
+## 5. Project Structure
+
+## 5. Project Structure
+
+```
+vibe-coding-starter-pack-3d-multiplayer/
+├── client/ # Vite+React+TS client
+│   ├── public/
+│   │   ├── models/ # 3D models and animations
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/ # React components (DebugPanel, GameScene, Player)
+│   │   ├── generated/  # Auto-generated TS bindings
+│   │   ├── App.css     # Component styles
+│   │   ├── App.tsx     # Main React component
+│   │   ├── index.css   # Global styles/resets
+│   │   └── main.tsx    # React entry point
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json   # Main TS config
+│   ├── tsconfig.app.json # App-specific TS config (used by Vite)
+│   └── vite.config.ts
+├── server/   # SpacetimeDB Server Module (Rust)
+│   ├── src/
+│   │   ├── common.rs
+│   │   ├── player_logic.rs
+│   │   └── lib.rs      # Main server module file
+│   ├── Cargo.toml
+│   └── target/
+├── setup.sh            # Set up script
+└── README.md           # Project overview
+``` 
+
+## 6. Development Workflow
+
+**Two terminals are required.**
+
+**Terminal 1: SpacetimeDB Server**
+
+1.  **Navigate:** `cd server`
+2.  **(If Rust code changed) Build Module:**
+    ```bash
+    spacetime build
+    ```
+3.  **Start/Restart Server:**
+    ```bash
+    # Stop previous instance if running (Ctrl+C)
+    spacetime start
+    ```
+    *(Leave this running in background or separate terminal)*
+4.  **(If Rust code changed OR first run OR after deleting DB) Publish Module:**
+    ```bash
+    spacetime publish vibe-multiplayer
+    ```
+    *CRITICAL: This uploads your built module to the **running** server instance.*
+
+**Terminal 2: Vite Client**
+
+1.  **Navigate:** `cd client`
+2.  **(If server schema/reducers changed) Regenerate Bindings:**
+    ```bash
+    # Run this from SERVER directory:
+    cd ../server && spacetime generate --lang typescript --out-dir ../client/src/generated && cd ../client
+    ```
+3.  **(If dependencies changed) Install Dependencies:**
+    ```bash
+    npm install
+    ```
+4.  **Run Dev Server:**
+    ```bash
+    npm run dev
+    ```
+    *Leave this running. Access the client at the provided URL (e.g., http://localhost:5173). Check browser console for logs.*
+
+**Stopping:** Use `Ctrl+C` in each terminal.
+
+## 7. Server (Rust Module Details)
+
+*   **Structure:** Logic is modularized (`player_logic.rs`, `terrain_logic.rs`). `lib.rs` defines schema and reducers, calling functions in logic modules.
+*   **Schema (`lib.rs`):** Use `#[spacetimedb::table(name = "snake_case", public)]`. Add `#[derive(Clone)]`. Use `Identity` for player PKs.
+*   **Reducers (`lib.rs`):** Use `#[spacetimedb::reducer]`. Lifecycle reducers (`init`, `client_connected`, `client_disconnected`) take **only** `ctx: &ReducerContext`. Update loop uses `#[spacetimedb::reducer(update)]`.
+*   **DB Access (Within Modules):**
+    *   Import traits: `use crate::player;`
+    *   Import data structs: `use crate::PlayerData;`
+    *   Access via context: `ctx.db.snake_case_table_name()`
+    *   Methods: `.identity().find(id)`, `.identity().update(data)`, `.identity().delete(id)`, `.insert(data)`. Auto-inc PKs use `.identity()` accessors too.
+*   **Timestamp:** `ctx.timestamp` provides a `Timestamp` struct (u64 microseconds). Access value with `.micros()`. Currently requires explicit import `use spacetimedb::Timestamp`.
+*   **Error Handling:** Return `Result<(), String>` for handled errors. Panics also roll back transactions.
+
+## 8. Client (React+TS+R3F Details)
+
+*   **Setup:** Use Vite `react-ts` template. Install `@clockworklabs/spacetimedb-sdk@1.0.1` (exact version), `three`, `@react-three/fiber`, `@react-three/drei`, `@types/react`, `@types/react-dom`, `@types/three`.
+*   **Bindings:** Import via `import * as moduleBindings from "./generated";`. Use aliased types (e.g., `type PlayerData = moduleBindings.PlayerData;`).
+*   **Connection:** Use `moduleBindings.DbConnection.builder()...build();` pattern in a top-level `useEffect(..., [])` hook in `App.tsx`. Register `onConnect`, `onDisconnect` on the builder.
+*   **Connection Object (`conn`):** The `DbConnection` instance received in the `onConnect` callback is essential. Store it (e.g., in a global variable or React context) to access `db` and `reducers`.
+*   **Reducer Calls:** Use `conn.reducers.reducerName(args)` (camelCase). Ensure `conn` is not null.
+*   **Table Callbacks:** Register *after* connection using `conn.db.tableName.onInsert(callback)`, etc. (camelCase). Callbacks receive `(ctx: EventContext, row: RowType, ...)` or similar.
+*   **State Management:** Use React `useState` for data received from SpacetimeDB (e.g., `players` map). Update state within table callbacks (`setPlayers(...)`). Render components based on this state.
+*   **Identity Comparison:** Use `.toHexString()` for reliable comparison and map keys.
+*   **Subscriptions:** Use `conn.subscriptionBuilder()`. Call `.subscribe("SELECT * FROM table_name")` (snake_case, case-sensitive). Register `.onApplied()` and `.onError()` callbacks on the builder.
+*   **JSX/TS Config:** Ensure `tsconfig.app.json` (or `tsconfig.json`) has `compilerOptions.jsx` set to `"react-jsx"`. Files with JSX need the `.tsx` extension.
+
+## 9. Multiplayer Architecture
+
+The game implements a client-server architecture for multiplayer functionality:
+
+1. **Server**: SpacetimeDB Rust module with WebAssembly
+   - Server-authoritative game state
+   - Handles player connections, movement, and interactions
+   - Manages game state on the server
+   - Broadcasts state updates to all connected clients
+
+2. **Client**: React Three Fiber client with SpacetimeDB connection
+   - Sends player inputs to server
+   - Receives and applies state updates from server
+   - Uses client-side prediction for responsive movement
+   - Renders both local player and remote players
+
+3. **Communication Protocol**:
+   - Real-time state synchronization
+   - Subscription-based state updates
+   - Input events sent from client to server
+
+4. **Server Components**:
+   - `server/lib.rs`: Main server entry point and database schema
+   - `server/player_logic.rs`: Server-side player logic and movement
+   - `server/common.rs`: Shared data structures
+
+5. **Client Multiplayer Components**:
+   - `client/App.tsx`: Handles connection to server and state synchronization
+   - `Player.tsx`: Renders other players in the scene
+   - `DebugPanel.tsx`: Shows connected players and game state
+
+## 10. Key Learnings & Gotchas
+
+*   **`spacetime publish` is MANDATORY:** Run *after* `build` and *before* (or while) `start` is running. Updates module code on the server instance.
+*   **Version Lock:** Use exact SDK version (`"1.0.1"`) in `package.json` to match server.
+*   **Run Commands in Correct Directory:** `spacetime` commands usually in `server`, `npm` commands usually in `client`.
+*   **Table Visibility:** Forget `public` on Rust tables? Client subscriptions will fail (`'table_name' is not a valid table`).
+*   **Schema Changes:** Adding columns requires `spacetime delete <db_name>` then `spacetime publish <db_name>` during local dev.
+*   **Case Sensitivity:** Be precise with table names in SQL (`Player` vs `player`) and reducer names in client calls (`registerPlayer` vs `register_player`). Follow Rust definitions for SQL, camelCase for client reducer calls.
+*   **React StrictMode:** Can cause double `useEffect` runs in dev mode. Remove `<React.StrictMode>` wrapper in `main.tsx` if encountering double connections/prompts.
+*   **Generated Code Patterns:** The exact way to call reducers (`conn.reducers.reducerName`) and register callbacks (`conn.db.tableName.onInsert`) was found through trial, error, and documentation cross-referencing. Rely on this established pattern.
+*   **Client State:** Render UI based on React state variables (`players`, `localPlayer`) updated by SpacetimeDB callbacks, not by directly iterating the potentially stale client cache (`conn.db.player.iter()`) during render.
+
+## 11. Code Organization Best Practices
+
+1. **Component Structure**:
+   - Keep related functionality together
+   - Separate visual elements from game logic
+   - Use event-based communication between systems
+   - Divide client and server responsibilities clearly
+
+2. **Performance**:
+   - Optimize render loops with proper delta time calculations
+   - Reuse geometries and materials when possible
+   - Use object pooling for frequently created/destroyed objects
+   - Implement level-of-detail for complex objects
+   - Optimize network traffic with relevance filtering
+
+3. **Code Structure**:
+   - Use TypeScript types for game entities
+   - Implement proper inheritance hierarchies
+   - Use module imports rather than global variables
+   - Keep methods focused on single responsibilities
+   - Clearly separate client-side and server-side logic
+
+4. **Animation**:
+   - Use FBX models for character animations
+   - Implement proper animation transitions
+   - Use tweening for UI animations
+   - Handle animation synchronization between server and client
+
+5. **Multiplayer Guidelines**:
+   - Always consider authority and validation for all game actions
+   - Implement client-side prediction for responsive controls
+   - Use interpolation for smooth remote player movement
+   - Handle disconnections and reconnections gracefully
+
+## 12. Expansion Guidelines
+
+When adding new features:
+1. Follow the existing component architecture
+2. Create new files for major new systems
+3. Extend existing classes rather than modifying them
+4. Add appropriate event emissions for cross-component communication
+5. Document new systems with clear comments
+6. Maintain consistent naming conventions
+7. Consider performance implications, especially for visual effects
+8. For multiplayer features, always consider server authority, validation, and state synchronization
+
+## 13. Development Process for New Features
+
+1. **Planning Phase**:
+   - Scan all relevant files the feature may impact
+   - Identify any dependencies
+   - Map out technical requirements in detail
+   - Create a detailed markdown tasklist
+
+2. **Implementation Phase**:
+   - Implement server-side logic in Rust
+   - Generate updated TypeScript bindings
+   - Implement client-side components
+   - Test with multiple clients
+   - Optimize performance
+
+3. **Testing**:
+   - Test with multiple simultaneous connections
+   - Verify behavior with high latency
+   - Check error conditions and edge cases

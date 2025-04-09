@@ -1,0 +1,192 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body,
+html,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #222;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Add styles for nametags and player UI elements */
+.nametag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  font-family: "Arial", sans-serif;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  user-select: none;
+}
+
+.nametag-text {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.nametag-color {
+  font-size: 12px;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+/* Replace with class styling */
+.nametag-class {
+  font-size: 12px;
+  color: #a0e0ff; /* Light blue for class names */
+  font-style: italic;
+}
+
+/* Cursor style for when pointer-lock is active */
+body.cursor-locked {
+  cursor: none;
+}
+
+/* Health bar styles */
+.health-bar-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 200px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.health-bar {
+  height: 100%;
+  background-color: #ff5555;
+  transition: width 0.3s ease;
+}
+
+.mana-bar-container {
+  position: fixed;
+  bottom: 45px;
+  left: 20px;
+  width: 200px;
+  height: 15px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.mana-bar {
+  height: 100%;
+  background-color: #5555ff;
+  transition: width 0.3s ease;
+}
+
+/* Animation for damage flash */
+@keyframes damage-flash {
+  0% {
+    background-color: rgba(255, 0, 0, 0.5);
+  }
+  100% {
+    background-color: rgba(0, 0, 0, 0);
+  }
+}
+
+.damage-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.damage-flash {
+  animation: damage-flash 0.3s ease-out;
+}
+
+/* Add styles for player status UI */
+.player-status {
+  position: fixed;
+  bottom: 70px;
+  left: 20px;
+  color: white;
+  font-family: "Arial", sans-serif;
+  font-size: 14px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+}
+
+.player-name {
+  font-weight: bold;
+  margin-bottom: 3px;
+  font-size: 16px;
+}
+
+.player-health,
+.player-mana {
+  margin-bottom: 2px;
+}
