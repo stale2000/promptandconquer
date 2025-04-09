@@ -27,7 +27,14 @@ A lightweight 3D web-based multiplayer starter kit using Three.js, React, and Sp
 
 ### Installation
 
-Run the quick start script to set up everything automatically:
+First, clone the repository:
+
+```bash
+git clone https://github.com/majidmanzarpour/vibe-coding-starter-pack-3d-multiplayer
+cd vibe-coding-starter-pack-3d-multiplayer
+```
+
+Then run the quick start script to set up everything automatically:
 
 ```bash
 sh setup.sh
@@ -172,4 +179,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-This starter pack is maintained by Majid Manzarpour and is free to use for any project. 
+This starter pack is maintained by [Majid Manzarpour](https://x.com/majidmanzarpour) and is free to use for any project. 
