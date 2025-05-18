@@ -39,6 +39,7 @@ import { DirectionalLightHelper, CameraHelper } from 'three'; // Import the help
 import { PlayerData, InputState } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { Player } from './Player';
+import { GroundGrid } from './GroundGrid'; // Import our new component
 
 interface GameSceneProps {
   players: ReadonlyMap<string, PlayerData>; // Receive the map
@@ -99,23 +100,19 @@ export const GameScene: React.FC<GameSceneProps> = ({
         </>
       )}
       
-      {/* Visible Background Plane (darker, receives shadows) */}
-      <Plane 
-        args={[200, 200]} 
-        rotation={[-Math.PI / 2, 0, 0]} 
-        position={[0, -0.001, 0]} 
-        receiveShadow={true} 
-      >
-        <meshStandardMaterial color="#606060" /> { /* Changed to darker gray */ }
-      </Plane>
-o
-      {/* Simplified Grid Helper (mid-gray lines) */}
-      <Grid 
-        position={[0, 0, 0]} 
-        args={[200, 200]} 
-        cellSize={2} 
-        cellThickness={1}
-        cellColor={new THREE.Color('#888888')} // Mid-gray grid lines
+      {/* Ground Grid of Squares */}
+      <GroundGrid 
+        size={2.2} 
+        gap={0.15} 
+        rows={40} 
+        columns={40} 
+        centerGrid={true} 
+        color="#1a73e8"
+        secondColor="#4285f4"
+        alternateColors={true}
+        elevation={-0.001} // Slightly below zero to avoid z-fighting
+        roughness={0.8}
+        metalness={0.2}
       />
 
       {/* Render Players */}
