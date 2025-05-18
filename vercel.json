@@ -1,0 +1,5 @@
+{
+  "buildCommand": "curl -sSf https://install.spacetimedb.com | sh && export PATH=\"$PATH:$HOME/.local/bin\" && cd server && spacetime generate --lang typescript --out-dir ../client/src/generated && cd ../client && npm install && npm run build",
+  "outputDirectory": "client/dist",
+  "framework": "vite"
+} 
