@@ -60,6 +60,11 @@ type InputState = moduleBindings.InputState;
 
 let conn: DbConnection | null = null;
 
+// Add a global declaration to make the connection available to other components
+declare global {
+  var conn: moduleBindings.DbConnection | null;
+}
+
 function App() {
   const [connected, setConnected] = useState(false);
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -149,6 +154,7 @@ function App() {
     console.log("Subscribing to tables...");
     const subscription = conn.subscriptionBuilder();
     subscription.subscribe("SELECT * FROM player");
+    subscription.subscribe("SELECT * FROM grid_square");
     subscription.onApplied(onSubscriptionApplied);
     subscription.onError(onSubscriptionError);
   }, [identity, onSubscriptionApplied, onSubscriptionError]); // Add dependencies
@@ -407,6 +413,7 @@ function App() {
     const onConnect = (connection: DbConnection, id: Identity, _token: string) => {
       console.log("Connected!");
       conn = connection;
+      window.conn = connection; // Store connection in global window object
       setIdentity(id);
       setConnected(true);
       setStatusMessage(`Connected as ${id.toHexString().substring(0, 8)}...`);
@@ -422,6 +429,7 @@ function App() {
       console.log("onDisconnect triggered:", reasonStr);
       setStatusMessage(`Disconnected: ${reasonStr}`);
       conn = null;
+      window.conn = null; // Clear global connection reference
       setIdentity(null);
       setConnected(false);
       setPlayers(new Map());

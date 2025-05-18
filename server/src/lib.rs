@@ -7,6 +7,7 @@
  *    - PlayerData: Active player information
  *    - LoggedOutPlayerData: Persistent data for disconnected players
  *    - GameTickSchedule: Periodic update scheduling
+ *    - GridSquareData: Data for grid squares
  * 
  * 2. Reducer Functions (Server Endpoints):
  *    - init: Module initialization and game tick scheduling
@@ -65,6 +66,15 @@ pub struct PlayerData {
     last_input_seq: u32,
     input: InputState,
     color: String,
+}
+
+#[spacetimedb::table(name = grid_square, public)]
+#[derive(Clone)]
+pub struct GridSquareData {
+    #[primary_key]
+    key: String,
+    selected: bool,
+    last_modified_by: Identity,
 }
 
 #[spacetimedb::table(name = logged_out_player)]
@@ -247,6 +257,32 @@ pub fn update_player_input(
         ctx.db.player().identity().update(player);
     } else {
         spacetimedb::log::warn!("Player {} tried to update input but is not active.", ctx.sender);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn toggle_grid_square(ctx: &ReducerContext, square_key: String) {
+    spacetimedb::log::info!("Player {} toggling grid square {}", ctx.sender, square_key);
+    
+    // Check if the square exists
+    if let Some(mut square) = ctx.db.grid_square().key().find(&square_key) {
+        // Toggle the selected state
+        let new_selected_state = !square.selected;
+        square.selected = new_selected_state;
+        square.last_modified_by = ctx.sender;
+        ctx.db.grid_square().key().update(square);
+        spacetimedb::log::info!("Square {} is now {}", square_key, if new_selected_state { "selected" } else { "deselected" });
+    } else {
+        // Create a new square record
+        let new_square = GridSquareData {
+            key: square_key.clone(),
+            selected: true,
+            last_modified_by: ctx.sender,
+        };
+        match ctx.db.grid_square().try_insert(new_square) {
+            Ok(_) => spacetimedb::log::info!("New square {} created and selected", square_key),
+            Err(e) => spacetimedb::log::error!("Error creating square {}: {}", square_key, e),
+        }
     }
 }
 

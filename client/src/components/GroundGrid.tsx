@@ -1,6 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
+import * as moduleBindings from '../generated';
+
+type GridSquareData = moduleBindings.GridSquareData;
+
+// Global reference to the SpacetimeDB connection
+declare global {
+  var conn: moduleBindings.DbConnection | null;
+}
 
 interface GroundGridProps {
   size?: number;         // Size of each square
@@ -37,7 +45,7 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
   opacity = 1.0,         // Fully opaque by default
   selectedColor = '#ffcc00' // Yellow color for selected squares
 }) => {
-  // State to track which squares have been clicked
+  // State to track which squares have been selected from the server
   const [selectedSquares, setSelectedSquares] = useState<Set<string>>(new Set());
   
   // Load texture if provided
@@ -51,17 +59,88 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
   const offsetX = centerGrid ? -totalWidth / 2 : 0;
   const offsetZ = centerGrid ? -totalDepth / 2 : 0;
   
+  // Subscribe to grid_square table updates
+  useEffect(() => {
+    // Skip if connection isn't available
+    if (!window.conn) return;
+    
+    console.log("Setting up grid square subscription and callbacks");
+    
+    // Register callbacks for grid square table changes
+    window.conn.db.gridSquare.onInsert((_ctx, square: GridSquareData) => {
+      if (square.selected) {
+        setSelectedSquares(prev => {
+          const newSet = new Set(prev);
+          newSet.add(square.key);
+          return newSet;
+        });
+      }
+    });
+    
+    window.conn.db.gridSquare.onUpdate((_ctx, _oldSquare: GridSquareData, newSquare: GridSquareData) => {
+      setSelectedSquares(prev => {
+        const newSet = new Set(prev);
+        if (newSquare.selected) {
+          newSet.add(newSquare.key);
+        } else {
+          newSet.delete(newSquare.key);
+        }
+        return newSet;
+      });
+    });
+    
+    window.conn.db.gridSquare.onDelete((_ctx, square: GridSquareData) => {
+      setSelectedSquares(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(square.key);
+        return newSet;
+      });
+    });
+    
+    // Subscribe to the grid_square table
+    const subscription = window.conn.subscriptionBuilder();
+    subscription.subscribe("SELECT * FROM grid_square");
+    subscription.onApplied(() => {
+      console.log("Grid square subscription applied");
+      // Initialize selected squares from the current data
+      if (window.conn) {
+        const initialSelected = new Set<string>();
+        for (const square of window.conn.db.gridSquare.iter()) {
+          if (square.selected) {
+            initialSelected.add(square.key);
+          }
+        }
+        setSelectedSquares(initialSelected);
+      }
+    });
+    subscription.onError((error) => {
+      console.error("Grid square subscription error:", error);
+    });
+    
+    return () => {
+      // Cleanup - when the component unmounts, we can't unsubscribe but
+      // at least we can remove the callbacks to prevent memory leaks
+      if (window.conn) {
+        // Remove callbacks (if the SDK supports this)
+        // This is a placeholder - check if the SDK has a way to unregister callbacks
+      }
+    };
+  }, []);
+  
   // Handle click on a square
   const handleClick = (key: string) => {
-    setSelectedSquares(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(key)) {
-        newSelected.delete(key);
-      } else {
-        newSelected.add(key);
-      }
-      return newSelected;
-    });
+    if (!window.conn) {
+      console.error("Cannot toggle grid square - not connected to server");
+      return;
+    }
+    
+    console.log("Toggling grid square:", key);
+    try {
+      // Call the reducer to toggle the square on the server
+      window.conn.reducers.toggleGridSquare(key);
+    } catch (error) {
+      console.error("Error toggling grid square:", error);
+    }
   };
   
   // Generate squares
@@ -100,15 +179,23 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
           castShadow  // Cast shadows
           receiveShadow // Enable shadow receiving
           onClick={(e) => {
+            console.log("Click detected on grid square:", square.key);
             e.stopPropagation();
-            e.nativeEvent.stopPropagation();
-            e.nativeEvent.preventDefault();
+            if (e.nativeEvent) {
+              e.nativeEvent.stopPropagation();
+              e.nativeEvent.preventDefault();
+            }
             // Prevent camera controls from being activated
-            e.delta = 0; // Reset any movement delta
+            if (e.delta) e.delta = 0; // Reset any movement delta
             handleClick(square.key);
           }}
           onPointerDown={(e) => {
             // Capture pointer to prevent camera controls
+            console.log("Pointer down on grid square:", square.key);
+            e.stopPropagation();
+          }}
+          onPointerUp={(e) => {
+            console.log("Pointer up on grid square:", square.key);
             e.stopPropagation();
           }}
         >

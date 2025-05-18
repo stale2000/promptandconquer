@@ -40,12 +40,16 @@ import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
 import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
+import { ToggleGridSquare } from "./toggle_grid_square_reducer.ts";
+export { ToggleGridSquare };
 import { UpdatePlayerInput } from "./update_player_input_reducer.ts";
 export { UpdatePlayerInput };
 
 // Import and reexport all table handle types
 import { GameTickScheduleTableHandle } from "./game_tick_schedule_table.ts";
 export { GameTickScheduleTableHandle };
+import { GridSquareTableHandle } from "./grid_square_table.ts";
+export { GridSquareTableHandle };
 import { LoggedOutPlayerTableHandle } from "./logged_out_player_table.ts";
 export { LoggedOutPlayerTableHandle };
 import { PlayerTableHandle } from "./player_table.ts";
@@ -54,6 +58,8 @@ export { PlayerTableHandle };
 // Import and reexport all types
 import { GameTickSchedule } from "./game_tick_schedule_type.ts";
 export { GameTickSchedule };
+import { GridSquareData } from "./grid_square_data_type.ts";
+export { GridSquareData };
 import { InputState } from "./input_state_type.ts";
 export { InputState };
 import { LoggedOutPlayerData } from "./logged_out_player_data_type.ts";
@@ -69,6 +75,11 @@ const REMOTE_MODULE = {
       tableName: "game_tick_schedule",
       rowType: GameTickSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "scheduledId",
+    },
+    grid_square: {
+      tableName: "grid_square",
+      rowType: GridSquareData.getTypeScriptAlgebraicType(),
+      primaryKey: "key",
     },
     logged_out_player: {
       tableName: "logged_out_player",
@@ -97,6 +108,10 @@ const REMOTE_MODULE = {
     register_player: {
       reducerName: "register_player",
       argsType: RegisterPlayer.getTypeScriptAlgebraicType(),
+    },
+    toggle_grid_square: {
+      reducerName: "toggle_grid_square",
+      argsType: ToggleGridSquare.getTypeScriptAlgebraicType(),
     },
     update_player_input: {
       reducerName: "update_player_input",
@@ -133,6 +148,7 @@ export type Reducer = never
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "RegisterPlayer", args: RegisterPlayer }
+| { name: "ToggleGridSquare", args: ToggleGridSquare }
 | { name: "UpdatePlayerInput", args: UpdatePlayerInput }
 ;
 
@@ -187,6 +203,22 @@ export class RemoteReducers {
     this.connection.offReducer("register_player", callback);
   }
 
+  toggleGridSquare(squareKey: string) {
+    const __args = { squareKey };
+    let __writer = new BinaryWriter(1024);
+    ToggleGridSquare.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("toggle_grid_square", __argsBuffer, this.setCallReducerFlags.toggleGridSquareFlags);
+  }
+
+  onToggleGridSquare(callback: (ctx: ReducerEventContext, squareKey: string) => void) {
+    this.connection.onReducer("toggle_grid_square", callback);
+  }
+
+  removeOnToggleGridSquare(callback: (ctx: ReducerEventContext, squareKey: string) => void) {
+    this.connection.offReducer("toggle_grid_square", callback);
+  }
+
   updatePlayerInput(input: InputState, clientPos: Vector3, clientRot: Vector3, clientAnimation: string) {
     const __args = { input, clientPos, clientRot, clientAnimation };
     let __writer = new BinaryWriter(1024);
@@ -216,6 +248,11 @@ export class SetReducerFlags {
     this.registerPlayerFlags = flags;
   }
 
+  toggleGridSquareFlags: CallReducerFlags = 'FullUpdate';
+  toggleGridSquare(flags: CallReducerFlags) {
+    this.toggleGridSquareFlags = flags;
+  }
+
   updatePlayerInputFlags: CallReducerFlags = 'FullUpdate';
   updatePlayerInput(flags: CallReducerFlags) {
     this.updatePlayerInputFlags = flags;
@@ -228,6 +265,10 @@ export class RemoteTables {
 
   get gameTickSchedule(): GameTickScheduleTableHandle {
     return new GameTickScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GameTickSchedule>(REMOTE_MODULE.tables.game_tick_schedule));
+  }
+
+  get gridSquare(): GridSquareTableHandle {
+    return new GridSquareTableHandle(this.connection.clientCache.getOrCreateTable<GridSquareData>(REMOTE_MODULE.tables.grid_square));
   }
 
   get loggedOutPlayer(): LoggedOutPlayerTableHandle {
