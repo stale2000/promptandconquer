@@ -375,8 +375,8 @@ function App() {
         return;
     }
 
-    const dbHost = "localhost:3000";
-    const dbName = "vibe-multiplayer";
+    const dbHost = "https://maincloud.spacetimedb.com";
+    const dbName = "promptandconquer";
 
     console.log(`Connecting to SpacetimeDB at ${dbHost}, database: ${dbName}...`);
 
