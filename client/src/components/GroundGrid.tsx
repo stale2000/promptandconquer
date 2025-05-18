@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 
@@ -17,6 +17,7 @@ interface GroundGridProps {
   roughness?: number;    // Material roughness
   metalness?: number;    // Material metalness
   opacity?: number;      // Material opacity
+  selectedColor?: string; // Color for selected squares
 }
 
 export const GroundGrid: React.FC<GroundGridProps> = ({
@@ -33,8 +34,12 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
   textureUrl,
   roughness = 0.7,       // Default roughness (less reflective)
   metalness = 0.1,       // Default metalness (slightly metallic)
-  opacity = 1.0          // Fully opaque by default
+  opacity = 1.0,         // Fully opaque by default
+  selectedColor = '#ffcc00' // Yellow color for selected squares
 }) => {
+  // State to track which squares have been clicked
+  const [selectedSquares, setSelectedSquares] = useState<Set<string>>(new Set());
+  
   // Load texture if provided
   const texture = textureUrl ? useLoader(THREE.TextureLoader, textureUrl) : null;
   
@@ -45,6 +50,19 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
   // Calculate offset to center the grid if needed
   const offsetX = centerGrid ? -totalWidth / 2 : 0;
   const offsetZ = centerGrid ? -totalDepth / 2 : 0;
+  
+  // Handle click on a square
+  const handleClick = (key: string) => {
+    setSelectedSquares(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(key)) {
+        newSelected.delete(key);
+      } else {
+        newSelected.add(key);
+      }
+      return newSelected;
+    });
+  };
   
   // Generate squares
   const squares = useMemo(() => {
@@ -60,11 +78,12 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
         // Determine color (alternating pattern if enabled)
         const isAlternate = (row + col) % 2 === 1;
         const squareColor = alternateColors && isAlternate ? secondColor : color;
+        const key = `square-${row}-${col}`;
         
         squaresArray.push({
           position: [x, y, z],
           color: squareColor,
-          key: `square-${row}-${col}`
+          key
         });
       }
     }
@@ -80,12 +99,16 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
           position={square.position as [number, number, number]} 
           castShadow  // Cast shadows
           receiveShadow // Enable shadow receiving
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClick(square.key);
+          }}
         >
           <boxGeometry args={[size, height, size]} />
           {texture ? (
             <meshStandardMaterial 
               map={texture} 
-              color={square.color} 
+              color={selectedSquares.has(square.key) ? selectedColor : square.color} 
               roughness={roughness}
               metalness={metalness}
               opacity={opacity}
@@ -93,7 +116,7 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
             />
           ) : (
             <meshStandardMaterial 
-              color={square.color} 
+              color={selectedSquares.has(square.key) ? selectedColor : square.color} 
               roughness={roughness}
               metalness={metalness}
               opacity={opacity}
