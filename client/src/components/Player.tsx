@@ -156,17 +156,11 @@ export const Player: React.FC<PlayerProps> = ({
     let localMoveZ = 0;
     let localMoveY = 0; // Add vertical movement
     
-    if (cameraMode === CAMERA_MODES.ORBITAL) {
-        if (inputState.forward) localMoveZ += 1;
-        if (inputState.backward) localMoveZ -= 1;
-        if (inputState.left) localMoveX += 1;
-        if (inputState.right) localMoveX -= 1;
-    } else {
-        if (inputState.forward) localMoveZ -= 1;
-        if (inputState.backward) localMoveZ += 1;
-        if (inputState.left) localMoveX -= 1;
-        if (inputState.right) localMoveX += 1;
-    }
+    // Fully inverted movement mapping
+    if (inputState.forward) localMoveZ += 1;
+    if (inputState.backward) localMoveZ -= 1;
+    if (inputState.left) localMoveX += 1;
+    if (inputState.right) localMoveX -= 1;
     
     // Add vertical movement using Space for up and C for down
     if (inputState.jump) localMoveY += 1;      // Move up with Space
@@ -179,15 +173,13 @@ export const Player: React.FC<PlayerProps> = ({
       localMoveVector.normalize();
     }
 
-    // 2. Determine which rotation to use based on camera mode
-    if (cameraMode === CAMERA_MODES.FOLLOW) {
-      // --- FOLLOW MODE: Use current player rotation ---
-      rotationYaw = currentRot.y;
-    } else {
-      // --- ORBITAL MODE: Use fixed rotation from when mode was entered ---
-      rotationYaw = orbitalCameraRef.current.playerFacingRotation;
-      console.log(`[Orbital Move Calc] Mode: ORBITAL, Using fixed yaw: ${rotationYaw.toFixed(3)}`);
-    }
+              // Always use the current player rotation for movement calculation
+          rotationYaw = currentRot.y;
+          
+          // Debug log for orbital mode
+          if (cameraMode === CAMERA_MODES.ORBITAL) {
+            console.log(`[Orbital Move Calc] Mode: ORBITAL, Using player rotation: ${rotationYaw.toFixed(3)}`);
+          }
 
     // 3. Rotate the LOCAL movement vector by the appropriate YAW to get the WORLD direction
     // But only rotate XZ components, leave Y (vertical) unchanged
@@ -807,18 +799,15 @@ export const Player: React.FC<PlayerProps> = ({
     const newMode = cameraMode === CAMERA_MODES.FOLLOW ? CAMERA_MODES.ORBITAL : CAMERA_MODES.FOLLOW;
     setCameraMode(newMode);
     
-    // Store player's facing direction when entering orbital mode
+    // Configure orbital camera when entering that mode
     if (newMode === CAMERA_MODES.ORBITAL) {
-      // Use the current reconciled rotation from the ref
-      orbitalCameraRef.current.playerFacingRotation = localRotationRef.current.y;
-      console.log(`[Orbital Toggle] Storing playerFacingRotation: ${orbitalCameraRef.current.playerFacingRotation.toFixed(3)}`); // DEBUG
-      // Set the initial orbital angle to match the player's facing direction
+      // Set the initial orbital angle to match the player's current facing direction
       orbitalCameraRef.current.angle = localRotationRef.current.y;
       // Reset elevation to a default value for a consistent starting view
       orbitalCameraRef.current.elevation = Math.PI / 6; 
       
-      // Log the stored rotation for debugging
-      console.log(`Entering orbital mode. Stored player rotation: ${(localRotationRef.current.y * (180/Math.PI)).toFixed(2)}°`);
+      // Log for debugging
+      console.log(`Entering orbital mode. Current player rotation: ${(localRotationRef.current.y * (180/Math.PI)).toFixed(2)}°`);
     }
     
     console.log(`Camera mode toggled to: ${newMode}`);
@@ -907,43 +896,43 @@ export const Player: React.FC<PlayerProps> = ({
                   // Calculate the base target yaw
                   targetVisualYaw = Math.atan2(worldMoveDirection.x, worldMoveDirection.z);
 
-                  // --- Reverse yaw ONLY for FORWARD diagonal movement ---
-                  if (forward && !backward) { // Check if primary movement is forward
+                  // --- Reverse yaw ONLY for BACKWARD diagonal movement (for inverted movement) ---
+                  if (!forward && backward) { // Check if primary movement is backward 
                       targetVisualYaw += Math.PI; // Add 180 degrees
                   }
                   // --- End reversal --- 
               }
           } else { // ORBITAL MODE
-              // --- Apply diagonal rotation logic similar to FOLLOW mode --- 
+              // --- Apply diagonal rotation logic --- 
               const { forward, backward, left, right } = currentInput;
               const isMovingDiagonally = (forward || backward) && (left || right);
 
               if (isMovingDiagonally) {
-                  // Calculate local movement vector (Orbital mapping: W=+z, S=-z, A=+x, D=-x)
+                  // Fully inverted movement mapping for visual rotation calculations
                   let localMoveX = 0;
                   let localMoveZ = 0;
                   if (forward) localMoveZ += 1;
-                  if (backward) localMoveZ -= 1; // Corrected backward direction for orbital local
-                  if (left) localMoveX += 1; // Corrected left direction for orbital local
-                  if (right) localMoveX -= 1; // Corrected right direction for orbital local
+                  if (backward) localMoveZ -= 1;
+                  if (left) localMoveX += 1;
+                  if (right) localMoveX -= 1;
                   const localMoveVector = new THREE.Vector3(localMoveX, 0, localMoveZ).normalize();
 
                   // Rotate local movement by the FIXED orbital yaw to get world direction
-                  const fixedOrbitalYaw = orbitalCameraRef.current.playerFacingRotation;
-                  const worldMoveDirection = localMoveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), fixedOrbitalYaw);
+                  // Always use current player rotation for movement
+                  const worldMoveDirection = localMoveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), localRotationRef.current.y);
 
                   // Calculate base target yaw
                   targetVisualYaw = Math.atan2(worldMoveDirection.x, worldMoveDirection.z);
 
-                  // --- RE-ADD Condition: Reverse yaw ONLY for FORWARD diagonal movement --- 
+                  // --- Reverse yaw ONLY for BACKWARD diagonal movement (for inverted movement) --- 
                   if (!forward && backward) { 
                       targetVisualYaw += Math.PI; // Add 180 degrees
                   }
                   // --- End conditional reversal --- 
                   
               } else {
-                   // If not moving diagonally, face the fixed rotation
-                   targetVisualYaw = orbitalCameraRef.current.playerFacingRotation;
+                   // If not moving diagonally, maintain current rotation
+                   targetVisualYaw = localRotationRef.current.y;
               }
               // --- End diagonal rotation logic for ORBITAL ---
           }
