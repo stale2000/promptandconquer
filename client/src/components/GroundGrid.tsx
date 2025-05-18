@@ -12,6 +12,7 @@ interface GroundGridProps {
   alternateColors?: boolean; // Whether to use alternating colors
   secondColor?: string;  // Second color for alternating pattern
   elevation?: number;    // Height off the ground
+  height?: number;       // Height of each raised square
   textureUrl?: string;   // Optional texture URL
   roughness?: number;    // Material roughness
   metalness?: number;    // Material metalness
@@ -28,6 +29,7 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
   alternateColors = true,
   secondColor = '#99c1f1',
   elevation = 0,         // At ground level by default
+  height = 0.05,         // Default raised height
   textureUrl,
   roughness = 0.7,       // Default roughness (less reflective)
   metalness = 0.1,       // Default metalness (slightly metallic)
@@ -50,8 +52,9 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
     
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        // Calculate position
+        // Calculate position - y coordinate is now elevation + half of height
         const x = offsetX + col * (size + gap) + size / 2;
+        const y = elevation + height / 2; // Position at half the height for box geometry
         const z = offsetZ + row * (size + gap) + size / 2;
         
         // Determine color (alternating pattern if enabled)
@@ -59,7 +62,7 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
         const squareColor = alternateColors && isAlternate ? secondColor : color;
         
         squaresArray.push({
-          position: [x, elevation, z],
+          position: [x, y, z],
           color: squareColor,
           key: `square-${row}-${col}`
         });
@@ -67,7 +70,7 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
     }
     
     return squaresArray;
-  }, [rows, columns, size, gap, offsetX, offsetZ, color, secondColor, alternateColors, elevation]);
+  }, [rows, columns, size, gap, offsetX, offsetZ, color, secondColor, alternateColors, elevation, height]);
   
   return (
     <group>
@@ -75,10 +78,10 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
         <mesh 
           key={square.key} 
           position={square.position as [number, number, number]} 
-          rotation={[-Math.PI / 2, 0, 0]} // Rotate to lay flat on ground
+          castShadow  // Cast shadows
           receiveShadow // Enable shadow receiving
         >
-          <planeGeometry args={[size, size]} />
+          <boxGeometry args={[size, height, size]} />
           {texture ? (
             <meshStandardMaterial 
               map={texture} 
@@ -87,7 +90,6 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
               metalness={metalness}
               opacity={opacity}
               transparent={opacity < 1}
-              side={THREE.DoubleSide} // Visible from both sides
             />
           ) : (
             <meshStandardMaterial 
@@ -96,7 +98,6 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
               metalness={metalness}
               opacity={opacity}
               transparent={opacity < 1}
-              side={THREE.DoubleSide} // Visible from both sides
             />
           )}
         </mesh>

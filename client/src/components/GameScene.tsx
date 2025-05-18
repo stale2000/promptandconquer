@@ -110,7 +110,8 @@ export const GameScene: React.FC<GameSceneProps> = ({
         color="#1a73e8"
         secondColor="#4285f4"
         alternateColors={true}
-        elevation={-0.001} // Slightly below zero to avoid z-fighting
+        elevation={0.01} // Slightly above ground level
+        height={0.08} // Height of each raised square
         roughness={0.8}
         metalness={0.2}
       />
