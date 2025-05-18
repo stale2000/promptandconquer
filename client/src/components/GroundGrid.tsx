@@ -101,7 +101,15 @@ export const GroundGrid: React.FC<GroundGridProps> = ({
           receiveShadow // Enable shadow receiving
           onClick={(e) => {
             e.stopPropagation();
+            e.nativeEvent.stopPropagation();
+            e.nativeEvent.preventDefault();
+            // Prevent camera controls from being activated
+            e.delta = 0; // Reset any movement delta
             handleClick(square.key);
+          }}
+          onPointerDown={(e) => {
+            // Capture pointer to prevent camera controls
+            e.stopPropagation();
           }}
         >
           <boxGeometry args={[size, height, size]} />
