@@ -375,7 +375,7 @@ function App() {
         return;
     }
 
-    const dbHost = "https://maincloud.spacetimedb.com";
+    const dbHost = "maincloud.spacetimedb.com";
     const dbName = "promptandconquer";
 
     console.log(`Connecting to SpacetimeDB at ${dbHost}, database: ${dbName}...`);
@@ -405,7 +405,7 @@ function App() {
     };
 
     moduleBindings.DbConnection.builder()
-      .withUri(`ws://${dbHost}`)
+      .withUri(`wss://${dbHost}`)
       .withModuleName(dbName)
       .onConnect(onConnect)
       .onDisconnect(onDisconnect)
