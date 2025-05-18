@@ -164,9 +164,9 @@ function App() {
   }, []);
 
   // --- Input State Management ---
-  const keyMap: { [key: string]: keyof Omit<InputState, 'sequence' | 'castSpell'> } = {
+  const keyMap: { [key: string]: keyof Omit<InputState, 'sequence'> } = {
       KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right',
-      ShiftLeft: 'sprint', Space: 'jump',
+      ShiftLeft: 'sprint', Space: 'jump', KeyC: 'castSpell'
   };
 
   const determineAnimation = useCallback((input: InputState): string => {
@@ -213,33 +213,57 @@ function App() {
     return animationName;
   }, []);
 
-  const sendInput = useCallback((currentInputState: InputState) => {
-    if (!conn || !identity || !connected) return; // Check connection status too
-    const currentPosition = localPlayer?.position || { x: 0, y: 0, z: 0 };
+  const sendInput = useCallback((input: InputState) => {
+    // For flying mode, we don't send updates to the server
+    // This is a no-op now - all movement is handled client-side only
+    return;
     
-    // Now using the playerRotationRef for more accurate rotation tracking
-    const currentRotation = {
-      x: playerRotationRef.current.x,
-      y: playerRotationRef.current.y,
-      z: playerRotationRef.current.z
-    };
+    // Original code:
+    /* 
+    if (!conn || !identity) return;
+    const currentState = {...input};
     
-    // Determine animation from input state
-    const currentAnimation = determineAnimation(currentInputState);
+    // Skip sending if no change since last sent state
+    if (deepEqual(currentState, lastSentInputState.current)) {
+        return;
+    }
+    
+    // Save the state we're about to send for comparison next time
+    lastSentInputState.current = {...currentState};
+    
+    // Only send if we have a valid rotation
+    if (!playerRotationRef.current) return;
 
-    let changed = false;
-    for (const key in currentInputState) {
-        if (currentInputState[key as keyof InputState] !== lastSentInputState.current[key as keyof InputState]) {
-            changed = true;
-            break;
+    // Get player position from state or default to 0,0,0
+    const currentPos = localPlayer?.position || { x: 0, y: 0, z: 0 };
+    
+    try {
+        // Detect frame drops or lag
+        const highseq = input.sequence > 1000000; // Arbitrary high number
+        if (highseq) {
+            console.log(`High sequence detected: ${input.sequence}, resetting to 1`);
+            currentInputRef.current.sequence = 1;
         }
+        
+        // Animation determination
+        const animationName = determineAnimation(input);
+        
+        // Update server with current input, position, rotation, and animation
+        conn.reducers.updatePlayerInput(
+            input, 
+            currentPos,
+            { 
+                x: playerRotationRef.current.x,
+                y: playerRotationRef.current.y,
+                z: playerRotationRef.current.z
+            },
+            animationName
+        );
+    } catch (error) {
+        console.error("Error sending input to server:", error);
     }
-
-    if (changed || currentInputState.sequence !== lastSentInputState.current.sequence) {
-        conn.reducers.updatePlayerInput(currentInputState, currentPosition, currentRotation, currentAnimation);
-        lastSentInputState.current = { ...currentInputState };
-    }
-  }, [identity, localPlayer, connected, determineAnimation]);
+    */
+  }, []);
 
   // Add player rotation handler
   const handlePlayerRotation = useCallback((rotation: THREE.Euler) => {
@@ -460,6 +484,25 @@ function App() {
           />
           {/* Render PlayerUI only if localPlayer exists */} 
           {localPlayer && <PlayerUI playerData={localPlayer} />} 
+          
+          {/* Flying Controls Explanation */}
+          <div style={{ 
+            position: 'absolute', 
+            bottom: '20px', 
+            right: '20px', 
+            backgroundColor: 'rgba(0,0,0,0.7)', 
+            color: 'white',
+            padding: '10px',
+            borderRadius: '5px',
+            maxWidth: '300px'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0' }}>Flying Controls:</h3>
+            <p style={{ margin: '5px 0' }}>WASD: Move horizontally</p>
+            <p style={{ margin: '5px 0' }}>SPACE: Fly up</p>
+            <p style={{ margin: '5px 0' }}>C: Fly down</p>
+            <p style={{ margin: '5px 0' }}>SHIFT: Move faster</p>
+            <p style={{ margin: '5px 0' }}>MOUSE: Look around</p>
+          </div>
         </>
       )}
 

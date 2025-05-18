@@ -141,17 +141,21 @@ export const Player: React.FC<PlayerProps> = ({
     // console.log(`[Move Calc] cameraMode: ${cameraMode}`); // Suppressed log
     
     // Skip if no movement input
-    if (!inputState.forward && !inputState.backward && !inputState.left && !inputState.right) {
+    if (!inputState.forward && !inputState.backward && !inputState.left && !inputState.right && !inputState.jump && !inputState.castSpell) {
       return currentPos;
     }
 
     let worldMoveVector = new THREE.Vector3();
-    const speed = inputState.sprint ? PLAYER_SPEED * SPRINT_MULTIPLIER : PLAYER_SPEED;
+    // Increase flying speed
+    const flyingSpeed = PLAYER_SPEED * 2.0;
+    const speed = inputState.sprint ? flyingSpeed * SPRINT_MULTIPLIER : flyingSpeed;
     let rotationYaw = 0;
 
     // 1. Calculate local movement vector based on WASD
     let localMoveX = 0;
     let localMoveZ = 0;
+    let localMoveY = 0; // Add vertical movement
+    
     if (cameraMode === CAMERA_MODES.ORBITAL) {
         if (inputState.forward) localMoveZ += 1;
         if (inputState.backward) localMoveZ -= 1;
@@ -163,7 +167,12 @@ export const Player: React.FC<PlayerProps> = ({
         if (inputState.left) localMoveX -= 1;
         if (inputState.right) localMoveX += 1;
     }
-    const localMoveVector = new THREE.Vector3(localMoveX, 0, localMoveZ);
+    
+    // Add vertical movement using Space for up and C for down
+    if (inputState.jump) localMoveY += 1;      // Move up with Space
+    if (inputState.castSpell) localMoveY -= 1; // Use cast spell button to move down
+    
+    const localMoveVector = new THREE.Vector3(localMoveX, localMoveY, localMoveZ);
 
     // Normalize if diagonal movement
     if (localMoveVector.lengthSq() > 1.1) {
@@ -181,13 +190,21 @@ export const Player: React.FC<PlayerProps> = ({
     }
 
     // 3. Rotate the LOCAL movement vector by the appropriate YAW to get the WORLD direction
-    worldMoveVector = localMoveVector.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationYaw);
+    // But only rotate XZ components, leave Y (vertical) unchanged
+    const horizontalVector = new THREE.Vector3(localMoveVector.x, 0, localMoveVector.z);
+    const rotatedHorizontal = horizontalVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationYaw);
+    
+    // Combine rotated horizontal movement with unrotated vertical movement
+    worldMoveVector = new THREE.Vector3(
+      rotatedHorizontal.x,
+      localMoveVector.y,
+      rotatedHorizontal.z
+    );
 
     // 4. Scale by speed and delta time
     worldMoveVector.multiplyScalar(speed * delta);
 
     // 5. Calculate the final position based on the raw world movement
-    // The server-side sign flip is handled during reconciliation, not prediction.
     const finalPosition = currentPos.clone().add(worldMoveVector);
 
     // Debug log for orbital mode
@@ -853,47 +870,22 @@ export const Player: React.FC<PlayerProps> = ({
 
       if (group.current && modelLoaded) {
         if (isLocalPlayer && currentInput) {
-          // --- LOCAL PLAYER PREDICTION & RECONCILIATION --- 
-
-          // 1. Calculate predicted position based on current input, rotation, and SERVER_TICK_DELTA
+          // --- LOCAL PLAYER FLYING MOVEMENT (CLIENT-SIDE ONLY) --- 
+          
+          // 1. Calculate position based on current input, rotation, and actual delta time
           const predictedPosition = calculateClientMovement(
             localPositionRef.current,
-            localRotationRef.current, // Pass current local rotation; function internally selects based on mode
+            localRotationRef.current,
             currentInput,
-            SERVER_TICK_DELTA // Use FIXED delta for prediction to match server
+            dt // Use actual delta for smoother movement
           );
+          
+          // 2. Apply position directly 
           localPositionRef.current.copy(predictedPosition);
+          group.current.position.copy(predictedPosition);
+            
+          // No server reconciliation for flying mode - we're completely client-side now
 
-          // 2. RECONCILIATION (Position)
-          const serverPosition = new THREE.Vector3(dataRef.current.position.x, dataRef.current.position.y, dataRef.current.position.z);
-
-          // Compare local (unflipped) prediction with an unflipped version of the server state
-          const unflippedServerPosition = serverPosition.clone();
-          unflippedServerPosition.x *= -1; // Undo server flip for comparison
-          unflippedServerPosition.z *= -1; // Undo server flip for comparison
-
-          const positionError = localPositionRef.current.distanceTo(unflippedServerPosition);
-          
-          if (positionError > POSITION_RECONCILE_THRESHOLD) {
-            // Temporarily disable LERP in orbital mode to test if reconciliation is the issue
-            if (cameraMode !== CAMERA_MODES.ORBITAL) {
-                localPositionRef.current.lerp(serverPosition, RECONCILE_LERP_FACTOR);
-            }
-          }
-
-          // 2.5 RECONCILIATION (Rotation) 
-          const serverRotation = new THREE.Euler(0, dataRef.current.rotation.y, 0, 'YXZ');
-          const reconcileTargetQuat = new THREE.Quaternion().setFromEuler(serverRotation);
-          const currentQuat = new THREE.Quaternion().setFromEuler(localRotationRef.current);
-          const rotationError = currentQuat.angleTo(reconcileTargetQuat);
-          
-          if (rotationError > ROTATION_RECONCILE_THRESHOLD) {
-              currentQuat.slerp(reconcileTargetQuat, RECONCILE_LERP_FACTOR);
-              localRotationRef.current.setFromQuaternion(currentQuat, 'YXZ');
-          }
-
-          // 3. Apply potentially reconciled predicted position AND reconciled local rotation directly to the model group
-          group.current.position.copy(localPositionRef.current);
           // --- Visual Rotation Logic --- 
           let targetVisualYaw = localRotationRef.current.y; // Default: Face camera/mouse direction
 
@@ -961,7 +953,7 @@ export const Player: React.FC<PlayerProps> = ({
           const targetVisualQuat = new THREE.Quaternion().setFromEuler(targetVisualRotation);
           
           // Interpolate the group's quaternion towards the target
-          group.current.quaternion.slerp(targetVisualQuat, Math.min(1, dt * 10)); 
+          group.current.quaternion.slerp(targetVisualQuat, Math.min(1, dt * 10));
 
           // --- DEBUG: Draw/Update Directional Arrow (Conditional) ---
           const scene = group.current?.parent; // Get scene reference
@@ -1011,13 +1003,13 @@ export const Player: React.FC<PlayerProps> = ({
           const serverPosition = new THREE.Vector3(playerData.position.x, playerData.position.y, playerData.position.z);
           const targetRotation = new THREE.Euler(0, playerData.rotation.y, 0, 'YXZ');
 
-          // Interpolate position smoothly
-          group.current.position.lerp(serverPosition, Math.min(1, dt * 10));
+          // Always interpolate position smoothly for remote players (ignore teleporting flag)
+          group.current.position.lerp(serverPosition, Math.min(1, dt * 5)); // Slower interpolation for smoother movement
 
           // Interpolate rotation smoothly (using quaternions for better slerp)
           group.current.quaternion.slerp(
             new THREE.Quaternion().setFromEuler(targetRotation),
-            Math.min(1, dt * 8)
+            Math.min(1, dt * 5) // Slower rotation for smoother movement
           );
         }
       }

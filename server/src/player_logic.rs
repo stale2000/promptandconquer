@@ -7,9 +7,9 @@
  * Key components:
  * 
  * 1. Movement Calculation:
- *    - calculate_new_position: Computes player movement based on input and rotation
- *    - Vector math for converting input to movement direction
- *    - Direction normalization and speed application
+ *    - calculate_new_position: Computes player movement based on grid coordinates
+ *    - Instant teleportation to adjacent grid cells
+ *    - Grid-based positioning system
  * 
  * 2. State Management:
  *    - update_input_state: Updates player state based on client input
@@ -22,7 +22,7 @@
  *    - Can be extended for server-side simulation (AI, physics, etc.)
  * 
  * Extension points:
- *    - Add terrain logic for realistic height adjustments
+ *    - Add terrain logic for different grid tiles
  *    - Implement server-side animation determination (commented example provided)
  *    - Add collision detection in calculate_new_position
  *    - Expand update_players_logic for server-side gameplay mechanics
@@ -38,85 +38,92 @@ use crate::common::{Vector3, InputState, PLAYER_SPEED, SPRINT_MULTIPLIER};
 // Import the PlayerData struct definition (assuming it's in lib.rs or common.rs)
 use crate::PlayerData;
 
-// Corrected movement logic based on reversed feedback
-pub fn calculate_new_position(position: &Vector3, rotation: &Vector3, input: &InputState, delta_time: f32) -> Vector3 {
-    let has_movement_input = input.forward || input.backward || input.left || input.right;
+// Grid cell size for movement
+const GRID_CELL_SIZE: f32 = 1.0;
 
-    if has_movement_input {
-        let speed = if input.sprint { PLAYER_SPEED * SPRINT_MULTIPLIER } else { PLAYER_SPEED };
-
-        // This approach more directly matches the new client implementation
-        // Create basis vectors for movement (forward/right vectors from camera)
-        // -Z is forward in Three.js coordinates 
-        let yaw = rotation.y;
-        
-        // Forward and right unit vectors (initially along axes)
-        let forward = Vector3 { x: 0.0, y: 0.0, z: -1.0 };
-        let right = Vector3 { x: 1.0, y: 0.0, z: 0.0 };
-        
-        // Rotate these vectors based on player rotation (around Y-axis)
-        // These are the rotation formulas for vectors around Y axis
-        let cos_yaw = yaw.cos();
-        let sin_yaw = yaw.sin();
-        
-        // Apply rotation to forward vector
-        let rotated_forward = Vector3 {
-            x: forward.x * cos_yaw + forward.z * sin_yaw,
-            y: 0.0,
-            z: -forward.x * sin_yaw + forward.z * cos_yaw,
-        };
-        
-        // Apply rotation to right vector
-        let rotated_right = Vector3 {
-            x: right.x * cos_yaw + right.z * sin_yaw,
-            y: 0.0,
-            z: -right.x * sin_yaw + right.z * cos_yaw,
-        };
-        
-        // Accumulate movement along these basis vectors
-        let mut direction = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
-        
-        if input.forward {
-            direction.x -= rotated_forward.x;
-            direction.z -= rotated_forward.z;
+// Grid-based movement where players teleport one square at a time
+pub fn calculate_new_position(position: &Vector3, rotation: &Vector3, input: &InputState, _delta_time: f32) -> Vector3 {
+    let mut new_position = position.clone();
+    
+    // Determine primary movement direction based on input and rotation
+    // We'll only allow one direction of movement at a time for grid-based movement
+    
+    // Get the dominant input direction based on player's facing
+    // We need to determine which cardinal direction the player is primarily facing
+    let yaw = rotation.y;
+    let normalized_yaw = ((yaw % (2.0 * std::f32::consts::PI)) + 2.0 * std::f32::consts::PI) % (2.0 * std::f32::consts::PI);
+    
+    // Cardinal directions in radians (assuming standard orientation where 0 is +Z, and goes clockwise)
+    // In Three.js: 0 radians = looking down negative Z axis
+    // North = -Z, East = +X, South = +Z, West = -X
+    
+    if input.forward {
+        // Move in the direction the player is facing (rounded to nearest cardinal)
+        if normalized_yaw < std::f32::consts::PI * 0.25 || normalized_yaw > std::f32::consts::PI * 1.75 {
+            // Facing primarily North (-Z)
+            new_position.z -= GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 0.75 {
+            // Facing primarily East (+X)
+            new_position.x += GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 1.25 {
+            // Facing primarily South (+Z)
+            new_position.z += GRID_CELL_SIZE;
+        } else {
+            // Facing primarily West (-X)
+            new_position.x -= GRID_CELL_SIZE;
         }
-        if input.backward {
-            direction.x += rotated_forward.x;
-            direction.z += rotated_forward.z;
+    } else if input.backward {
+        // Move opposite to the direction the player is facing
+        if normalized_yaw < std::f32::consts::PI * 0.25 || normalized_yaw > std::f32::consts::PI * 1.75 {
+            // Facing primarily North, move South
+            new_position.z += GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 0.75 {
+            // Facing primarily East, move West
+            new_position.x -= GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 1.25 {
+            // Facing primarily South, move North
+            new_position.z -= GRID_CELL_SIZE;
+        } else {
+            // Facing primarily West, move East
+            new_position.x += GRID_CELL_SIZE;
         }
-        if input.right {
-            direction.x -= rotated_right.x;
-            direction.z -= rotated_right.z;
+    } else if input.right {
+        // Move 90 degrees clockwise from the direction the player is facing
+        if normalized_yaw < std::f32::consts::PI * 0.25 || normalized_yaw > std::f32::consts::PI * 1.75 {
+            // Facing primarily North, move East
+            new_position.x += GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 0.75 {
+            // Facing primarily East, move South
+            new_position.z += GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 1.25 {
+            // Facing primarily South, move West
+            new_position.x -= GRID_CELL_SIZE;
+        } else {
+            // Facing primarily West, move North
+            new_position.z -= GRID_CELL_SIZE;
         }
-        if input.left {
-            direction.x += rotated_right.x;
-            direction.z += rotated_right.z;
+    } else if input.left {
+        // Move 90 degrees counter-clockwise from the direction the player is facing
+        if normalized_yaw < std::f32::consts::PI * 0.25 || normalized_yaw > std::f32::consts::PI * 1.75 {
+            // Facing primarily North, move West
+            new_position.x -= GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 0.75 {
+            // Facing primarily East, move North
+            new_position.z -= GRID_CELL_SIZE;
+        } else if normalized_yaw < std::f32::consts::PI * 1.25 {
+            // Facing primarily South, move East
+            new_position.x += GRID_CELL_SIZE;
+        } else {
+            // Facing primarily West, move South
+            new_position.z += GRID_CELL_SIZE;
         }
-        
-        // Normalize for consistent speed in all directions
-        let magnitude = (direction.x.powi(2) + direction.z.powi(2)).sqrt();
-        if magnitude > 0.01 {
-            direction.x /= magnitude;
-            direction.z /= magnitude;
-        }
-        
-        // Apply speed and delta time
-        direction.x *= speed * delta_time;
-        direction.z *= speed * delta_time;
-        
-        // Create new position
-        let mut new_position = position.clone();
-        new_position.x += direction.x;
-        new_position.z += direction.z;
-        
-        // For terrain, you could implement height logic here if needed
-        // Example: new_position.y = calculate_terrain_height(new_position.x, new_position.z);
-        
-        return new_position;
-    } else {
-        // No movement input, return current position
-        position.clone()
     }
+    
+    // Snap to grid
+    new_position.x = (new_position.x / GRID_CELL_SIZE).round() * GRID_CELL_SIZE;
+    new_position.z = (new_position.z / GRID_CELL_SIZE).round() * GRID_CELL_SIZE;
+    
+    return new_position;
 }
 
 // Note: Animation determination is currently handled client-side
@@ -136,30 +143,35 @@ pub fn calculate_new_position(position: &Vector3, rotation: &Vector3, input: &In
 
 // Update player state based on input
 pub fn update_input_state(player: &mut PlayerData, input: InputState, client_rot: Vector3, client_animation: String) {
-    // Calculate movement & animation based on RECEIVED input
-    let delta_time_estimate: f32 = 1.0 / 60.0; // Estimate client frame delta
+    // Calculate new grid position based on input
     let new_position = calculate_new_position(
         &player.position,
         &client_rot, // Use client rotation for direction calc
         &input,
-        delta_time_estimate
+        0.0 // Delta time not needed for grid movement
     );
 
+    // Set is_teleporting flag to true to signal instant movement
+    // This will need to be added to the PlayerData struct in lib.rs
+    player.is_teleporting = true;
+    
     // Update player state
     player.position = new_position;
     player.rotation = client_rot;
     player.current_animation = client_animation;
     player.input = input.clone(); // Store the input that caused this state
     player.last_input_seq = input.sequence;
-    player.is_moving = input.forward || input.backward || input.left || input.right;
-    player.is_running = player.is_moving && input.sprint;
+    
+    // Set is_moving to false since we're teleporting
+    player.is_moving = false;
+    player.is_running = false;
+    
     player.is_attacking = input.attack;
     player.is_casting = input.cast_spell;
 }
 
 // Update players logic (called from game_tick)
 pub fn update_players_logic(_ctx: &ReducerContext, _delta_time: f64) {
-    // In the simplified starter pack, we don't need to do anything in the game tick
-    // for players as they're updated directly through the update_player_input reducer
-    // This function is a placeholder for future expansion
+    // In the grid-based teleportation system, all movement is handled through keypresses
+    // This function is a placeholder for future expansion (e.g., AI movement on grid)
 }
